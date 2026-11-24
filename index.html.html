@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MiStock · Prototipo Navegable MVP (Versión 2)</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: radial-gradient(circle at top, #e2e8f0 0%, #cbd5e1 100%);
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Custom subtle scrollbars inside mobile frame */
+    .phone-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+    .phone-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .phone-scroll::-webkit-scrollbar-thumb {
+      background: rgba(15, 37, 55, 0.15);
+      border-radius: 9999px;
+    }
+
+    /* Pulse animation for real-time sync indicator */
+    @keyframes pulse-ring {
+      0% { transform: scale(0.85); opacity: 0.9; }
+      70% { transform: scale(1.6); opacity: 0; }
+      100% { transform: scale(1.6); opacity: 0; }
+    }
+    .sync-pulse::before {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 9999px;
+      background-color: #10B981;
+      animation: pulse-ring 2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+    }
+
+    /* Scanner laser animation */
+    @keyframes scan-line {
+      0%, 100% { top: 12%; }
+      50% { top: 84%; }
+    }
+    .scanner-laser {
+      animation: scan-line 2.2s ease-in-out infinite;
+    }
+
+    /* Toast entrance */
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(16px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .toast-animate {
+      animation: toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-2 sm:p-6">
+
+  <!-- Presentation Header (Desktop / Academic Demo Context) -->
+  <div class="hidden md:flex items-center justify-between w-full max-w-[420px] mb-3 px-2 text-xs text-slate-600">
+    <div class="flex items-center gap-2 font-semibold text-[#0F2537]">
+      <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+      Prototipo Interactivo MVP · Versión 2
+    </div>
+    <span class="bg-white/80 backdrop-blur px-2.5 py-1 rounded-full border border-slate-300/70 font-medium text-slate-700">
+      Minimarket Don José
+    </span>
+  </div>
+
+  <!-- Mobile Phone Mockup Frame (390x844px) -->
+  <div class="relative w-full max-w-[390px] h-[844px] max-h-[95vh] bg-[#F8FAFC] rounded-[44px] shadow-[0_25px_70px_-15px_rgba(15,37,55,0.38)] border-[10px] border-[#0F2537] flex flex-col overflow-hidden select-none">
+
+    <!-- iOS Style Status Bar & Dynamic Island -->
+    <div class="bg-[#F8FAFC] pt-3 pb-2 px-6 flex items-center justify-between shrink-0 z-20">
+      <span class="text-[13px] font-semibold text-[#0F2537] tracking-tight">9:41</span>
+      <!-- Notch / Dynamic Island -->
+      <div class="w-24 h-5 bg-[#0F2537] rounded-full flex items-center justify-end px-2">
+        <div class="w-2 h-2 rounded-full bg-slate-700"></div>
+      </div>
+      <!-- Signal / Wifi / Battery -->
+      <div class="flex items-center gap-1.5 text-[#0F2537]">
+        <i data-lucide="signal" class="w-3.5 h-3.5"></i>
+        <i data-lucide="wifi" class="w-3.5 h-3.5"></i>
+        <i data-lucide="battery-full" class="w-4 h-4"></i>
+      </div>
+    </div>
+
+    <!-- Main Dynamic Viewport Container -->
+    <main id="app-viewport" class="flex-1 overflow-y-auto phone-scroll px-5 pb-24">
+      <!-- Content injected dynamically via JS -->
+    </main>
+
+    <!-- Floating Sync Toast Notification -->
+    <div id="sync-toast" class="hidden absolute bottom-24 left-4 right-4 z-40 pointer-events-none">
+      <div class="toast-animate bg-[#0F2537] text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-700/80 flex items-center gap-3">
+        <div class="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+          <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+        </div>
+        <div class="text-xs leading-snug">
+          <p id="toast-title" class="font-semibold text-white">Stock actualizado para todo el equipo · Sin equipos extra</p>
+          <p id="toast-subtitle" class="text-[11px] text-slate-300 mt-0.5">Sincronizado en tiempo real en 3 celulares</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Simulated QR / Barcode Scanner -->
+    <div id="scanner-modal" class="hidden absolute inset-0 z-50 bg-[#0F2537]/95 backdrop-blur-sm flex flex-col justify-between p-6 text-white">
+      <div class="flex items-center justify-between pt-4">
+        <div>
+          <span class="inline-flex items-center gap-1.5 text-[11px] font-medium bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded-full">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            Escáner QR / Código de barras
+          </span>
+          <h3 class="text-lg font-bold mt-2">Escanear producto</h3>
+        </div>
+        <button onclick="closeScannerModal()" class="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Viewfinder Box -->
+      <div class="my-auto flex flex-col items-center">
+        <div class="relative w-60 h-52 rounded-3xl border-2 border-emerald-400/70 bg-slate-900/70 flex flex-col items-center justify-center overflow-hidden shadow-inner">
+          <!-- Corner brackets -->
+          <div class="absolute top-3 left-3 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl-lg"></div>
+          <div class="absolute top-3 right-3 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-lg"></div>
+          <div class="absolute bottom-3 left-3 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl-lg"></div>
+          <div class="absolute bottom-3 right-3 w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-br-lg"></div>
+          <!-- Animated laser -->
+          <div class="scanner-laser absolute left-4 right-4 h-0.5 bg-emerald-400 shadow-[0_0_12px_#10B981]"></div>
+
+          <i data-lucide="qr-code" class="w-16 h-16 text-slate-400/60 mb-2"></i>
+          <p class="text-xs text-slate-300 text-center px-4">Apunta la cámara del celular al código de barras o QR</p>
+        </div>
+
+        <!-- Quick Simulation Selector -->
+        <div class="w-full mt-6 bg-white/10 rounded-2xl p-4 border border-white/10">
+          <label class="block text-[11px] uppercase tracking-wider text-slate-300 font-semibold mb-2">
+            Simular lectura de producto:
+          </label>
+          <select id="scanner-product-select" class="w-full bg-[#0F2537] text-white text-xs font-medium rounded-xl px-3 py-2.5 border border-slate-600 focus:outline-none focus:border-emerald-400">
+            <!-- Populated dynamically -->
+          </select>
+
+          <div class="grid grid-cols-3 gap-2 mt-3">
+            <button onclick="executeQuickScan(-1)" class="bg-red-500/90 hover:bg-red-500 text-white text-xs font-semibold py-2.5 px-2 rounded-xl flex items-center justify-center gap-1 transition active:scale-95">
+              <i data-lucide="minus" class="w-3.5 h-3.5"></i> 1 Salida
+            </button>
+            <button onclick="executeQuickScan(1)" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold py-2.5 px-2 rounded-xl flex items-center justify-center gap-1 transition active:scale-95">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i> 1 Ingreso
+            </button>
+            <button onclick="executeQuickScan(6)" class="bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold py-2.5 px-2 rounded-xl flex items-center justify-center gap-1 transition active:scale-95">
+              <i data-lucide="package-plus" class="w-3.5 h-3.5"></i> +6 Caja
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <p class="text-[11px] text-center text-slate-400">
+        Sin lectores externos · Actualiza el stock real para todo el equipo
+      </p>
+    </div>
+
+    <!-- Modal: Assisted Migration & Free Trial Onboarding (Excel / Cuaderno) -->
+    <div id="migration-modal" class="hidden absolute inset-0 z-50 bg-[#0F2544]/80 backdrop-blur-xs flex items-end sm:items-center justify-center p-4">
+      <div class="bg-white w-full rounded-3xl p-5 shadow-2xl border border-slate-200 text-[#0F2544] toast-animate">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <h3 class="text-sm font-extrabold">Prueba gratuita acompañada y migración asistida</h3>
+              <p class="text-[11px] text-slate-500">De Excel o cuaderno · Tutoriales, WhatsApp y correo</p>
+            </div>
+          </div>
+          <button onclick="closeMigrationModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <div id="migration-modal-body" class="py-4 space-y-2.5 text-xs">
+          <!-- Step 1 -->
+          <div class="flex items-start gap-2.5 bg-slate-50 p-2.5 rounded-2xl border border-slate-200/70">
+            <span class="w-5 h-5 rounded-full bg-[#0F2544] text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">1</span>
+            <div>
+              <p class="font-bold text-[#0F2544]">Elige el origen de tu inventario</p>
+              <p class="text-[11px] text-slate-500">Planilla Excel o cuaderno de bodega/minimarket para probar antes de contratar.</p>
+            </div>
+          </div>
+          <!-- Step 2 -->
+          <div class="flex items-start gap-2.5 bg-slate-50 p-2.5 rounded-2xl border border-slate-200/70">
+            <span class="w-5 h-5 rounded-full bg-[#0F2544] text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">2</span>
+            <div>
+              <p class="font-bold text-[#0F2544]">Revisa columnas y productos de ejemplo</p>
+              <p class="text-[11px] text-slate-500">Producto, Marca, Sabor/Variedad, Tamaño, Stock y SKU ordenados sin esfuerzo.</p>
+            </div>
+          </div>
+          <!-- Step 3 -->
+          <div class="flex items-start gap-2.5 bg-slate-50 p-2.5 rounded-2xl border border-slate-200/70">
+            <span class="w-5 h-5 rounded-full bg-[#0F2544] text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">3</span>
+            <div>
+              <p class="font-bold text-[#0F2544]">Confirma carga guiada y soporte continuo</p>
+              <p class="text-[11px] text-slate-500">Incluye tutoriales, acompañamiento por WhatsApp y correo, actualizaciones y seguimiento.</p>
+            </div>
+          </div>
+
+          <div class="pt-1">
+            <button onclick="simulateExcelImport()" class="w-full bg-[#0F2544] hover:bg-[#16325C] text-white font-bold py-3 px-4 rounded-xl shadow-md flex items-center justify-center gap-2 transition active:scale-95">
+              <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+              <span>Confirmar carga guiada (+12 productos de ejemplo)</span>
+            </button>
+            <button onclick="requestWhatsAppAdvisor()" class="w-full mt-2 bg-slate-100 hover:bg-slate-200 text-[#0F2544] font-semibold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition">
+              <i data-lucide="message-circle" class="w-4 h-4 text-emerald-600"></i>
+              <span>Pedir apoyo por WhatsApp / correo</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Navigation Bar (4 Main Tabs) -->
+    <nav class="absolute bottom-0 inset-x-0 bg-white border-t border-slate-200/90 px-3 pt-2 pb-5 flex items-center justify-around z-30">
+      <button onclick="switchTab('inicio')" id="nav-inicio" class="nav-btn flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition text-[#0F2537]">
+        <i data-lucide="home" class="w-5 h-5"></i>
+        <span class="text-[11px] font-semibold">Inicio</span>
+      </button>
+      <button onclick="switchTab('inventario')" id="nav-inventario" class="nav-btn flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition text-slate-400 hover:text-slate-600">
+        <i data-lucide="package" class="w-5 h-5"></i>
+        <span class="text-[11px] font-medium">Inventario</span>
+      </button>
+      <button onclick="switchTab('alertas')" id="nav-alertas" class="nav-btn relative flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition text-slate-400 hover:text-slate-600">
+        <span id="alert-badge-dot" class="absolute top-1 right-3.5 w-2 h-2 rounded-full bg-red-500"></span>
+        <i data-lucide="bell" class="w-5 h-5"></i>
+        <span class="text-[11px] font-medium">Alertas</span>
+      </button>
+      <button onclick="switchTab('tienda')" id="nav-tienda" class="nav-btn flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition text-slate-400 hover:text-slate-600">
+        <i data-lucide="store" class="w-5 h-5"></i>
+        <span class="text-[11px] font-medium">Mi tienda</span>
+      </button>
+    </nav>
+
+    <!-- iOS Home Indicator -->
+    <div class="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-32 h-1 bg-slate-900/20 rounded-full z-30 pointer-events-none"></div>
+  </div>
+
+  <!-- Application Logic & State Management -->
+  <script>
+    // 14 Commercial Categories requested for Minimarket & Bodega
+    const CATEGORIES = [
+      "Todos",
+      "Abarrotes",
+      "Lácteos y Huevos",
+      "Bebidas",
+      "Limpieza",
+      "Snacks y Golosinas",
+      "Cuidado Personal",
+      "Panadería",
+      "Conservas",
+      "Condimentos y Aceites",
+      "Congelados",
+      "Mascotas",
+      "Librería y Bazar",
+      "Licores",
+      "Otros"
+    ];
+
+    // Initial Product Catalog with standardized attributes (Brand, Variant, Size, SKU)
+    let products = [
+      {
+        id: 1,
+        sku: "LAC-001",
+        baseName: "Leche evaporada",
+        brand: "Gloria",
+        variant: "Entera",
+        size: "Lata 400 g",
+        category: "Lácteos y Huevos",
+        price: 4.50,
+        stock: 6,
+        minStock: 10,
+        icon: "milk"
+      },
+      {
+        id: 2,
+        sku: "BEB-001",
+        baseName: "Gaseosa",
+        brand: "Inca Kola",
+        variant: "Original",
+        size: "Personal 500 ml",
+        category: "Bebidas",
+        price: 3.00,
+        stock: 4,
+        minStock: 12,
+        icon: "cup-soda"
+      },
+      {
+        id: 3,
+        sku: "ABA-001",
+        baseName: "Arroz",
+        brand: "Costeño",
+        variant: "Extra",
+        size: "Bolsa 1 kg",
+        category: "Abarrotes",
+        price: 4.80,
+        stock: 0,
+        minStock: 8,
+        icon: "wheat"
+      },
+      {
+        id: 4,
+        sku: "LIM-001",
+        baseName: "Detergente",
+        brand: "Bolívar",
+        variant: "En polvo Floral",
+        size: "Bolsa 800 g",
+        category: "Limpieza",
+        price: 8.20,
+        stock: 14,
+        minStock: 6,
+        icon: "sparkles"
+      },
+      {
+        id: 5,
+        sku: "CON-002",
+        baseName: "Aceite vegetal",
+        brand: "Primor",
+        variant: "Clásico",
+        size: "Botella 1 L",
+        category: "Condimentos y Aceites",
+        price: 9.50,
+        stock: 28,
+        minStock: 10,
+        icon: "droplet"
+      },
+      {
+        id: 6,
+        sku: "CON-001",
+        baseName: "Atún filete",
+        brand: "San Fernando",
+        variant: "En aceite",
+        size: "Lata 170 g",
+        category: "Conservas",
+        price: 5.80,
+        stock: 11,
+        minStock: 5,
+        icon: "package"
+      },
+      {
+        id: 7,
+        sku: "PAN-001",
+        baseName: "Pan de molde",
+        brand: "Bimbo",
+        variant: "Blanco",
+        size: "Bolsa 480 g",
+        category: "Panadería",
+        price: 6.50,
+        stock: 9,
+        minStock: 5,
+        icon: "croissant"
+      },
+      {
+        id: 8,
+        sku: "SNK-001",
+        baseName: "Papas fritas",
+        brand: "Lay's",
+        variant: "Clásicas",
+        size: "Bolsa 160 g",
+        category: "Snacks y Golosinas",
+        price: 5.50,
+        stock: 19,
+        minStock: 8,
+        icon: "cookie"
+      }
+    ];
+
+    // Attribute Options for Product Detail Dropdowns
+    const BRAND_OPTIONS = ["Gloria", "Inca Kola", "Costeño", "Bolívar", "Primor", "San Fernando", "Bimbo", "Lay's"];
+    const VARIANT_OPTIONS = ["Original", "Entera", "Extra", "En polvo Floral", "Clásico", "De pollo", "Blanco", "Clásicas", "Sin azúcar", "Light"];
+    const SIZE_OPTIONS = ["Lata 400 g", "Personal 500 ml", "Botella 1.5 L", "Bolsa 1 kg", "Bolsa 800 g", "Botella 1 L", "Paquete 250 g", "Bolsa 480 g", "Bolsa 160 g"];
+
+    // Global App State
+    let state = {
+      activeTab: 'inicio', // 'inicio' | 'inventario' | 'alertas' | 'tienda' | 'detalle'
+      previousTab: 'inicio',
+      selectedProductId: null,
+      detailDraftStock: 0,
+      selectedCategory: 'Todos',
+      availabilityFilter: 'all', // 'all' | 'in_stock' | 'low_stock' | 'out_of_stock'
+      searchQuery: '',
+      activeSkuCount: 248,
+      migrationImported: false,
+      lastActivity: {
+        type: "Último ingreso: +24 unidades",
+        detail: "Aceite Primor 1 L · Hoy, 8:32 a. m. · Por Carlos (Celular)",
+        isPositive: true
+      }
+    };
+
+    // Helper: Format standardized product name
+    function getFullProductName(p) {
+      return `${p.baseName} ${p.brand} ${p.variant} · ${p.size}`;
+    }
+
+    // Helper: Get stock status metadata
+    function getStockStatus(p) {
+      if (p.stock <= 0) {
+        return {
+          key: 'out_of_stock',
+          label: 'Sin stock',
+          shortLabel: 'Agotado',
+          badgeClass: 'bg-red-50 text-red-600 border border-red-200/80',
+          dotClass: 'bg-red-500'
+        };
+      }
+      if (p.stock <= p.minStock) {
+        return {
+          key: 'low_stock',
+          label: 'Stock bajo',
+          shortLabel: `${p.stock} un.`,
+          badgeClass: 'bg-amber-50 text-amber-700 border border-amber-200/80',
+          dotClass: 'bg-amber-500'
+        };
+      }
+      return {
+        key: 'in_stock',
+        label: 'Con stock',
+        shortLabel: `${p.stock} un.`,
+        badgeClass: 'bg-emerald-50 text-emerald-700 border border-emerald-200/80',
+        dotClass: 'bg-emerald-500'
+      };
+    }
+
+    // Helper: Calculate total dynamic inventory value in Soles
+    function calculateTotalInventoryValue() {
+      const trackedValue = products.reduce((sum, item) => sum + (item.price * item.stock), 0);
+      // Initial tracked sum = (4.5*6)+(3*4)+(4.8*0)+(8.2*14)+(9.5*28)+(6.9*11)+(6.5*9)+(5.5*19) = 658.70
+      // Offset so initial total equals exactly S/ 12,450.00
+      const offset = 12450.00 - 658.70;
+      return (offset + trackedValue).toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+
+    // Helper: Get critical products (Low Stock + Out of Stock)
+    function getCriticalProducts() {
+      return products.filter(p => p.stock <= p.minStock);
+    }
+
+    // Show Floating Sync Toast
+    let toastTimeout = null;
+    function showSyncToast(title = "Stock actualizado para todo el equipo · Sin equipos extra", subtitle = "Sincronizado en tiempo real en 3 celulares") {
+      const toastEl = document.getElementById('sync-toast');
+      document.getElementById('toast-title').textContent = title;
+      document.getElementById('toast-subtitle').textContent = subtitle;
+
+      toastEl.classList.remove('hidden');
+      if (toastTimeout) clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toastEl.classList.add('hidden');
+      }, 3400);
+    }
+
+    // Switch Bottom Navigation Tabs
+    function switchTab(tabName) {
+      state.activeTab = tabName;
+      if (tabName !== 'detalle') {
+        state.previousTab = tabName;
+      }
+      updateNavStyles();
+      renderApp();
+    }
+
+    function updateNavStyles() {
+      const tabs = ['inicio', 'inventario', 'alertas', 'tienda'];
+      const currentMain = state.activeTab === 'detalle' ? state.previousTab : state.activeTab;
+
+      tabs.forEach(t => {
+        const btn = document.getElementById(`nav-${t}`);
+        if (!btn) return;
+        if (t === currentMain) {
+          btn.classList.remove('text-slate-400', 'hover:text-slate-600');
+          btn.classList.add('text-[#0F2537]');
+          btn.querySelector('span:last-child').classList.add('font-semibold');
+        } else {
+          btn.classList.add('text-slate-400', 'hover:text-slate-600');
+          btn.classList.remove('text-[#0F2537]');
+          btn.querySelector('span:last-child').classList.remove('font-semibold');
+        }
+      });
+
+      const dot = document.getElementById('alert-badge-dot');
+      if (dot) {
+        dot.style.display = getCriticalProducts().length > 0 ? 'block' : 'none';
+      }
+    }
+
+    // Open Product Detail Screen
+    function openProductDetail(productId) {
+      const product = products.find(p => p.id === productId);
+      if (!product) return;
+      state.previousTab = state.activeTab === 'detalle' ? state.previousTab : state.activeTab;
+      state.selectedProductId = productId;
+      state.detailDraftStock = product.stock;
+      state.activeTab = 'detalle';
+      updateNavStyles();
+      renderApp();
+    }
+
+    // Navigate from "Ver todo ->" on Low Stock card
+    function goToLowStockInventory() {
+      state.availabilityFilter = 'low_stock';
+      state.selectedCategory = 'Todos';
+      state.inventorySubView = 'lista';
+      switchTab('inventario');
+    }
+
+    // Scanner Modal Controls
+    function openScannerModal() {
+      const select = document.getElementById('scanner-product-select');
+      select.innerHTML = products.map(p =>
+        `<option value="${p.id}">[${p.sku}] ${p.baseName} ${p.brand} (${p.stock} un.)</option>`
+      ).join('');
+      document.getElementById('scanner-modal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeScannerModal() {
+      document.getElementById('scanner-modal').classList.add('hidden');
+    }
+
+    function executeQuickScan(delta) {
+      const select = document.getElementById('scanner-product-select');
+      const prodId = parseInt(select.value, 10);
+      const product = products.find(p => p.id === prodId);
+      if (!product) return;
+
+      const oldStock = product.stock;
+      product.stock = Math.max(0, product.stock + delta);
+      const actualDelta = product.stock - oldStock;
+
+      if (actualDelta !== 0) {
+        const actionText = actualDelta > 0
+          ? `Último ingreso: +${actualDelta} unidad${Math.abs(actualDelta) > 1 ? 'es' : ''}`
+          : `Última salida: ${actualDelta} unidad${Math.abs(actualDelta) > 1 ? 'es' : ''}`;
+
+        state.lastActivity = {
+          type: actionText,
+          detail: `${product.baseName} ${product.brand} ${product.size} · Ahora · Por José (Escáner)`,
+          isPositive: actualDelta > 0
+        };
+      }
+
+      closeScannerModal();
+      updateNavStyles();
+      renderApp();
+      showSyncToast(
+        "Stock actualizado para todo el equipo · Sin equipos extra",
+        `${product.baseName} ${product.brand}: ${product.stock} unidades en tiempo real`
+      );
+    }
+
+    // Assisted Migration Modal Handlers
+    function openMigrationModal() {
+      document.getElementById('migration-modal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeMigrationModal() {
+      document.getElementById('migration-modal').classList.add('hidden');
+    }
+
+    function simulateExcelImport() {
+      if (!state.migrationImported) {
+        state.migrationImported = true;
+        state.activeSkuCount += 12;
+        products.push({
+          id: 9,
+          sku: "CON-009",
+          baseName: "Duraznos en mitades",
+          brand: "Gloria",
+          variant: "En almíbar ligero",
+          size: "Lata 820 g",
+          category: "Conservas",
+          price: 8.90,
+          stock: 18,
+          minStock: 6,
+          icon: "package"
+        });
+      }
+      state.lastActivity = {
+        type: "Migración asistida: +12 productos",
+        detail: "Importado desde Excel / Cuaderno · Hoy · Apoyo MiStock + José",
+        isPositive: true
+      };
+      closeMigrationModal();
+      renderApp();
+      showSyncToast(
+        "Stock actualizado para todo el equipo · Sin equipos extra",
+        "12 productos migrados desde Excel/cuaderno con acompañamiento"
+      );
+    }
+
+    function requestWhatsAppAdvisor() {
+      closeMigrationModal();
+      showSyncToast(
+        "Prueba gratuita acompañada activa",
+        "Soporte por WhatsApp y correo listo para migrar tu inventario"
+      );
+    }
+
+    function triggerSupportAction(channel) {
+      if (channel === 'whatsapp') {
+        showSyncToast(
+          "Soporte por WhatsApp habilitado",
+          "Acompañamiento directo para Excel, cuaderno y equipo"
+        );
+      } else if (channel === 'correo') {
+        showSyncToast(
+          "Soporte por correo: ayuda@mistock.pe",
+          "Seguimiento continuo y actualizaciones incluidas"
+        );
+      } else if (channel === 'tutoriales') {
+        showSyncToast(
+          "Tutoriales paso a paso disponibles",
+          "Aprende en minutos a escanear, filtrar y sincronizar"
+        );
+      }
+    }
+
+    // Simulate another worker registering a movement from their phone ("Mi tienda")
+    function simulateWorkerSync() {
+      const workers = [
+        { name: "Carlos (Turno mañana)", prodId: 2, delta: 12, label: "ingreso" },
+        { name: "María (Turno tarde)", prodId: 1, delta: -2, label: "venta" },
+        { name: "Carlos (Turno mañana)", prodId: 3, delta: 15, label: "reposición" }
+      ];
+      const pick = workers[Math.floor(Math.random() * workers.length)];
+      const product = products.find(p => p.id === pick.prodId);
+      if (!product) return;
+
+      product.stock = Math.max(0, product.stock + pick.delta);
+      const sign = pick.delta > 0 ? `+${pick.delta}` : `${pick.delta}`;
+
+      state.lastActivity = {
+        type: pick.delta > 0 ? `Último ingreso: ${sign} unidades` : `Última salida: ${sign} unidades`,
+        detail: `${product.baseName} ${product.brand} · Justo ahora · Por ${pick.name}`,
+        isPositive: pick.delta > 0
+      };
+
+      updateNavStyles();
+      renderApp();
+      showSyncToast(
+        "Stock actualizado para todo el equipo · Sin equipos extra",
+        `${product.baseName} ${product.brand} (${product.stock} un.) sincronizado por ${pick.name.split(' ')[0]}`
+      );
+    }
+
+    // Render Functions per View
+    function renderInicio() {
+      const critical = getCriticalProducts();
+      const totalValue = calculateTotalInventoryValue();
+
+      return `
+        <!-- Header with App Logo, Real-time Sync Status & Avatar -->
+        <header class="pt-2 pb-3 flex items-center justify-between">
+          <div>
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg bg-[#0F2544] text-white flex items-center justify-center shadow-sm">
+                <i data-lucide="box" class="w-4 h-4"></i>
+              </div>
+              <span class="text-xl font-extrabold text-[#0F2544] tracking-tight">MiStock</span>
+              <!-- Active Green Dot -->
+              <span class="relative inline-flex w-2.5 h-2.5 rounded-full bg-emerald-500 sync-pulse ml-0.5"></span>
+            </div>
+            <p class="text-xs text-slate-500 font-medium mt-1">Minimarket Don José · Lima</p>
+            <!-- Subtle Team Sync Pill -->
+            <div class="inline-flex items-center gap-1.5 mt-1.5 bg-emerald-50 border border-emerald-200/80 text-emerald-800 px-2.5 py-0.5 rounded-full text-[11px] font-medium">
+              <i data-lucide="smartphone" class="w-3 h-3 text-emerald-600"></i>
+              <span>3 celulares conectados · Tiempo real</span>
+            </div>
+          </div>
+
+          <button onclick="switchTab('tienda')" title="Ver equipo conectado" class="w-10 h-10 rounded-full bg-slate-200/80 hover:bg-slate-300/80 text-[#0F2544] font-bold text-sm flex items-center justify-center border border-slate-300/60 transition">
+            JC
+          </button>
+        </header>
+
+        <!-- Greeting & Date -->
+        <div class="flex items-baseline justify-between mb-2.5">
+          <h1 class="text-lg font-bold text-[#0F2544]">Buen día, José</h1>
+          <span class="text-xs text-slate-400 font-medium">Dom, 1 nov</span>
+        </div>
+
+        <!-- Quick-Access Card: Prueba gratuita acompañada y migración asistida -->
+        <section class="bg-white rounded-2xl p-3.5 shadow-sm border border-emerald-200/90 mb-3 flex items-center justify-between gap-2.5">
+          <div class="min-w-0">
+            <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+              <i data-lucide="sparkles" class="w-3 h-3"></i>
+              Prueba gratuita acompañada y migración asistida
+            </span>
+            <p class="text-[11px] text-slate-600 font-medium mt-1 leading-snug">
+              Pasa tu inventario desde Excel o cuaderno con apoyo · Tutoriales, WhatsApp y correo
+            </p>
+          </div>
+          <button onclick="openMigrationModal()" class="shrink-0 bg-[#0F2544] hover:bg-[#16325C] text-white text-[11px] font-bold px-3 py-2 rounded-xl shadow-xs transition active:scale-95">
+            Ver / Migrar inventario
+          </button>
+        </section>
+
+        <!-- Main Inventory Value Card (Dark Navy #0F2544) -->
+        <section class="bg-[#0F2544] text-white rounded-3xl p-4 shadow-lg shadow-[#0F2544]/15 relative overflow-hidden">
+          <div class="flex items-center justify-between text-slate-300 text-xs font-medium">
+            <span>Valor total del inventario</span>
+            <i data-lucide="trending-up" class="w-4 h-4 text-emerald-400"></i>
+          </div>
+
+          <div class="text-3xl font-extrabold tracking-tight mt-1.5 mb-3">
+            S/ ${totalValue}
+          </div>
+
+          <div class="flex items-center justify-between pt-2.5 border-t border-white/10 text-xs">
+            <span class="text-slate-300 font-medium">${state.activeSkuCount} productos activos</span>
+            <span class="inline-flex items-center gap-1.5 text-emerald-400 font-semibold">
+              <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+              Sincronizado · Tiempo real
+            </span>
+          </div>
+          <p class="text-[11px] text-emerald-200/90 mt-2 flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <span>Actualización en vivo desde celular de Carlos (Turno mañana)</span>
+          </p>
+        </section>
+
+        <!-- Scan Product Primary Action Button -->
+        <button onclick="openScannerModal()" class="w-full mt-3 bg-[#0F2544] hover:bg-[#16325C] active:scale-[0.99] text-white font-semibold text-sm py-3 px-4 rounded-2xl shadow-md flex items-center justify-center gap-2.5 transition">
+          <i data-lucide="scan-line" class="w-5 h-5 text-emerald-400"></i>
+          <span>Escanear producto (QR / Barras)</span>
+        </button>
+
+        <!-- Low Stock Card -->
+        <section class="mt-3.5 bg-white rounded-3xl p-4 shadow-sm border border-slate-200/70">
+          <div class="flex items-center justify-between mb-2.5">
+            <div class="flex items-center gap-2">
+              <h2 class="text-sm font-bold text-[#0F2544]">Stock bajo</h2>
+              <span class="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full">
+                ${critical.length}
+              </span>
+            </div>
+            <button onclick="goToLowStockInventory()" class="text-xs font-semibold text-[#0F2544] hover:underline flex items-center gap-1">
+              Ver todo <span aria-hidden="true">→</span>
+            </button>
+          </div>
+
+          <div class="divide-y divide-slate-100">
+            ${critical.slice(0, 3).map(p => {
+              const st = getStockStatus(p);
+              return `
+                <div onclick="openProductDetail(${p.id})" class="py-2 first:pt-1 last:pb-1 flex items-center justify-between gap-3 cursor-pointer hover:bg-slate-50 -mx-2 px-2 rounded-xl transition">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                      <i data-lucide="${p.icon}" class="w-4 h-4"></i>
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-xs font-bold text-[#0F2544] truncate">${p.baseName} ${p.brand}</p>
+                      <p class="text-[11px] text-slate-400 truncate">${p.size} · <span class="font-mono text-slate-600 font-semibold">${p.sku}</span></p>
+                    </div>
+                  </div>
+                  <span class="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-lg ${st.badgeClass}">
+                    ${st.shortLabel}
+                  </span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </section>
+
+        <!-- Recent Real-Time Team Activity Card -->
+        <section onclick="switchTab('tienda')" class="mt-3 bg-white rounded-2xl p-3 shadow-sm border border-slate-200/70 flex items-center justify-between gap-3 cursor-pointer hover:border-slate-300 transition">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-8 h-8 rounded-xl ${state.lastActivity.isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'} flex items-center justify-center shrink-0">
+              <i data-lucide="${state.lastActivity.isPositive ? 'arrow-down-left' : 'arrow-up-right'}" class="w-4 h-4"></i>
+            </div>
+            <div class="min-w-0">
+              <p class="text-xs font-bold text-[#0F2544] truncate">${state.lastActivity.type}</p>
+              <p class="text-[11px] text-slate-500 truncate mt-0.5">${state.lastActivity.detail}</p>
+            </div>
+          </div>
+          <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 shrink-0"></i>
+        </section>
+      `;
+    }
+
+    function renderInventario() {
+      // Filter products based on search, category, and availability
+      const filteredProducts = products.filter(p => {
+        const fullName = getFullProductName(p).toLowerCase();
+        const matchesSearch = fullName.includes(state.searchQuery.toLowerCase()) ||
+                              p.sku.toLowerCase().includes(state.searchQuery.toLowerCase());
+        const matchesCat = state.selectedCategory === 'Todos' || p.category === state.selectedCategory;
+        const statusObj = getStockStatus(p);
+        const matchesAvail = state.availabilityFilter === 'all' || statusObj.key === state.availabilityFilter;
+        return matchesSearch && matchesCat && matchesAvail;
+      });
+
+      const hasActiveFilters = state.selectedCategory !== 'Todos' || state.availabilityFilter !== 'all' || state.searchQuery.trim() !== '';
+
+      return `
+        <!-- Header -->
+        <header class="pt-2 pb-3 flex items-center justify-between">
+          <div>
+            <h1 class="text-lg font-extrabold text-[#0F2544]">Inventario</h1>
+            <p class="text-[11px] text-slate-500">14 categorías comerciales · Códigos SKU</p>
+          </div>
+          <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Tiempo real
+          </span>
+        </header>
+
+        <!-- Search Bar by Name or SKU -->
+        <div class="relative mb-2.5">
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+          <input
+            type="text"
+            value="${state.searchQuery}"
+            oninput="handleSearchInput(this.value)"
+            placeholder="Buscar producto, marca o SKU (ej. LAC-001)..."
+            class="w-full bg-white text-xs text-[#0F2544] placeholder-slate-400 pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#0F2544]"
+          />
+        </div>
+
+        <!-- Horizontal Selector of 14 Commercial Categories -->
+        <div class="mb-2.5">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[11px] font-bold text-slate-500">Categorías (14 rubros)</span>
+            ${state.selectedCategory !== 'Todos' ? `<span class="text-[10px] font-semibold text-[#0F2544]">${state.selectedCategory}</span>` : ''}
+          </div>
+          <div class="flex items-center gap-1.5 overflow-x-auto pb-1.5 phone-scroll">
+            ${CATEGORIES.map(cat => {
+              const isSelected = state.selectedCategory === cat;
+              return `
+                <button
+                  onclick="selectCategory('${cat}')"
+                  class="shrink-0 px-3 py-1.5 rounded-full text-[11px] font-semibold transition border ${isSelected ? 'bg-[#0F2544] text-white border-[#0F2544] shadow-xs' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}"
+                >
+                  ${cat}
+                </button>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- Quick Status Filter Chips ('Todos los productos', 'Con stock', 'Sin stock', 'Quitar filtros') -->
+        <div class="flex items-center gap-1.5 overflow-x-auto pb-2 mb-2 phone-scroll">
+          ${[
+            { id: 'all', label: 'Todos los productos' },
+            { id: 'in_stock', label: 'Con stock' },
+            { id: 'out_of_stock', label: 'Sin stock' }
+          ].map(opt => {
+            const active = state.availabilityFilter === opt.id;
+            return `
+              <button
+                onclick="setAvailabilityFilter('${opt.id}')"
+                class="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition border ${active ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200/70'}"
+              >
+                ${opt.label}
+              </button>
+            `;
+          }).join('')}
+
+          <button
+            onclick="resetAllFilters()"
+            class="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold ${hasActiveFilters ? 'text-red-600 bg-red-50 border border-red-200/80 hover:bg-red-100' : 'text-slate-500 bg-slate-100 border border-transparent hover:bg-slate-200/70'} transition"
+          >
+            Quitar filtros
+          </button>
+        </div>
+
+        <!-- Filtered Product Cards List -->
+        <div class="space-y-2.5">
+          ${filteredProducts.length === 0 ? `
+            <div class="bg-white rounded-2xl p-6 text-center border border-slate-200/70">
+              <i data-lucide="package-search" class="w-8 h-8 text-slate-300 mx-auto mb-2"></i>
+              <p class="text-xs font-bold text-[#0F2537]">No se encontraron productos</p>
+              <p class="text-[11px] text-slate-400 mt-1">Prueba cambiando la categoría o quitando los filtros activos.</p>
+              <button onclick="resetAllFilters()" class="mt-3 text-xs font-semibold text-red-600 hover:underline">Quitar filtros</button>
+            </div>
+          ` : filteredProducts.map(p => {
+            const st = getStockStatus(p);
+            return `
+              <div onclick="openProductDetail(${p.id})" class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/70 hover:border-[#0F2537]/40 cursor-pointer transition flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-11 h-11 rounded-xl bg-slate-100 text-[#0F2537] flex items-center justify-center shrink-0">
+                    <i data-lucide="${p.icon}" class="w-5 h-5"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-[10px] font-mono font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">${p.sku}</span>
+                      <span class="text-[10px] text-slate-400 truncate">${p.category}</span>
+                    </div>
+                    <p class="text-xs font-bold text-[#0F2537] leading-snug mt-1 line-clamp-2">${getFullProductName(p)}</p>
+                    <p class="text-xs font-extrabold text-[#0F2537] mt-1">S/ ${p.price.toFixed(2)}</p>
+                  </div>
+                </div>
+
+                <div class="flex flex-col items-end gap-1.5 shrink-0">
+                  <span class="text-[11px] font-bold px-2.5 py-1 rounded-lg ${st.badgeClass}">
+                    ${st.label}
+                  </span>
+                  <span class="text-[11px] font-semibold text-slate-500">${p.stock} un.</span>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function renderDetalle() {
+      const p = products.find(item => item.id === state.selectedProductId);
+      if (!p) return renderInventario();
+
+      // Preview status using draft stock
+      const previewProduct = { ...p, stock: state.detailDraftStock };
+      const st = getStockStatus(previewProduct);
+
+      return `
+        <!-- Top Back Navigation -->
+        <header class="pt-2 pb-3 flex items-center justify-between">
+          <button onclick="switchTab('${state.previousTab}')" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#0F2537] hover:bg-slate-200/60 px-2.5 py-1.5 -ml-2.5 rounded-xl transition">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i>
+            <span>Volver</span>
+          </button>
+          <span class="text-xs font-mono font-bold bg-slate-200/80 text-[#0F2537] px-2.5 py-1 rounded-lg">
+            SKU: ${p.sku}
+          </span>
+        </header>
+
+        <!-- Standardized Product Summary Header Card -->
+        <section class="bg-white rounded-3xl p-4 shadow-sm border border-slate-200/80 mb-3.5">
+          <div class="flex items-start gap-3.5">
+            <div class="w-14 h-14 rounded-2xl bg-[#0F2537]/5 text-[#0F2537] flex items-center justify-center shrink-0">
+              <i data-lucide="${p.icon}" class="w-7 h-7"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+              <span class="text-[11px] font-semibold text-slate-400">${p.category}</span>
+              <h1 id="detail-standardized-title" class="text-sm font-extrabold text-[#0F2537] leading-snug mt-0.5">
+                ${getFullProductName(p)}
+              </h1>
+              <div class="flex items-center justify-between mt-2.5 pt-2.5 border-t border-slate-100">
+                <div>
+                  <span class="text-[10px] uppercase text-slate-400 font-semibold block">Precio venta</span>
+                  <span class="text-sm font-extrabold text-[#0F2537]">S/ ${p.price.toFixed(2)}</span>
+                </div>
+                <div class="text-right">
+                  <span class="text-[10px] uppercase text-slate-400 font-semibold block mb-0.5">Estado actual</span>
+                  <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-lg ${st.badgeClass}">
+                    ${st.label} (${state.detailDraftStock} un.)
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Specific Attributes Form (Brand, Flavor/Variant, Size/Presentation) -->
+        <section class="bg-white rounded-3xl p-4 shadow-sm border border-slate-200/80 mb-3.5 space-y-3">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500">Atributos específicos del SKU</h2>
+            <span class="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">Sin ambigüedad</span>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Marca</label>
+            <select id="detail-brand" onchange="updateDetailPreview()" class="w-full bg-slate-50 text-xs font-semibold text-[#0F2537] rounded-xl px-3 py-2.5 border border-slate-200 focus:outline-none focus:border-[#0F2537]">
+              ${BRAND_OPTIONS.map(b => `<option value="${b}" ${p.brand === b ? 'selected' : ''}>${b}</option>`).join('')}
+            </select>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Sabor / Variante</label>
+              <select id="detail-variant" onchange="updateDetailPreview()" class="w-full bg-slate-50 text-xs font-semibold text-[#0F2537] rounded-xl px-3 py-2.5 border border-slate-200 focus:outline-none focus:border-[#0F2537]">
+                ${VARIANT_OPTIONS.map(v => `<option value="${v}" ${p.variant === v ? 'selected' : ''}>${v}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-600 mb-1">Tamaño / Presentación</label>
+              <select id="detail-size" onchange="updateDetailPreview()" class="w-full bg-slate-50 text-xs font-semibold text-[#0F2537] rounded-xl px-3 py-2.5 border border-slate-200 focus:outline-none focus:border-[#0F2537]">
+                ${SIZE_OPTIONS.map(s => `<option value="${s}" ${p.size === s ? 'selected' : ''}>${s}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <!-- Stock Movement Controls -->
+        <section class="bg-white rounded-3xl p-4 shadow-sm border border-slate-200/80 mb-3">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-bold text-[#0F2537]">Ajustar stock real</span>
+            <span class="text-xs font-semibold text-slate-400">Anterior: ${p.stock} un.</span>
+          </div>
+
+          <div class="flex items-center justify-between gap-2.5 bg-slate-50 p-2.5 rounded-2xl border border-slate-200/70">
+            <button onclick="adjustDraftStock(-1)" class="flex-1 bg-white hover:bg-red-50 text-red-600 border border-slate-200 font-bold text-[11px] py-2.5 px-2 rounded-xl flex items-center justify-center gap-1 shadow-xs active:scale-95 transition">
+              <i data-lucide="minus" class="w-3.5 h-3.5"></i> Registrar Salida (-)
+            </button>
+
+            <div class="px-2 text-center">
+              <span class="text-xl font-extrabold text-[#0F2537] block leading-none">${state.detailDraftStock}</span>
+              <span class="text-[10px] text-slate-400 font-medium">unid.</span>
+            </div>
+
+            <button onclick="adjustDraftStock(1)" class="flex-1 bg-white hover:bg-emerald-50 text-emerald-700 border border-slate-200 font-bold text-[11px] py-2.5 px-2 rounded-xl flex items-center justify-center gap-1 shadow-xs active:scale-95 transition">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i> Registrar Entrada (+)
+            </button>
+          </div>
+        </section>
+
+        <!-- Real-Time Sync Helper Microtext & Save Button -->
+        <div class="text-center mt-2">
+          <p class="text-[11px] text-slate-500 font-medium mb-2 flex items-center justify-center gap-1.5">
+            <i data-lucide="refresh-cw" class="w-3 h-3 text-emerald-600"></i>
+            <span>Los cambios se actualizan al instante para todo el equipo</span>
+          </p>
+          <button onclick="saveProductDetail(${p.id})" class="w-full bg-[#0F2537] hover:bg-[#16324A] active:scale-[0.99] text-white font-bold text-sm py-3.5 rounded-2xl shadow-md transition">
+            Guardar y sincronizar
+          </button>
+        </div>
+      `;
+    }
+
+    function renderAlertas() {
+      const critical = getCriticalProducts();
+
+      return `
+        <header class="pt-2 pb-4 flex items-center justify-between">
+          <div>
+            <h1 class="text-lg font-extrabold text-[#0F2537]">Alertas de stock</h1>
+            <p class="text-xs text-slate-500">Prioridades de reposición en tiempo real</p>
+          </div>
+          <span class="bg-red-100 text-red-700 text-xs font-extrabold px-2.5 py-1 rounded-full">
+            ${critical.length} pendientes
+          </span>
+        </header>
+
+        ${critical.length === 0 ? `
+          <div class="bg-white rounded-3xl p-8 text-center border border-slate-200/70 shadow-sm mt-4">
+            <div class="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
+              <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+            </div>
+            <h2 class="text-sm font-bold text-[#0F2537]">¡Todo el inventario abastecido!</h2>
+            <p class="text-xs text-slate-500 mt-1">No hay productos agotados ni con stock bajo en este momento.</p>
+          </div>
+        ` : `
+          <div class="space-y-3">
+            ${critical.map(p => {
+              const isOut = p.stock <= 0;
+              return `
+                <div class="bg-white rounded-2xl p-4 shadow-sm border ${isOut ? 'border-red-200' : 'border-amber-200'}">
+                  <div class="flex items-start justify-between gap-2">
+                    <div>
+                      <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md ${isOut ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'}">
+                        <i data-lucide="alert-triangle" class="w-3 h-3"></i>
+                        ${isOut ? 'Sin stock · Urgente' : 'Stock bajo'}
+                      </span>
+                      <h3 class="text-xs font-extrabold text-[#0F2537] mt-1.5">${getFullProductName(p)}</h3>
+                      <p class="text-[11px] text-slate-500 mt-0.5">SKU: <span class="font-mono font-semibold">${p.sku}</span> · Disponible: <strong class="text-[#0F2537]">${p.stock} un.</strong> (Mín. ${p.minStock})</p>
+                    </div>
+                  </div>
+                  <button onclick="openProductDetail(${p.id})" class="w-full mt-3 bg-[#0F2537] hover:bg-[#16324A] text-white text-xs font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition">
+                    <i data-lucide="package-plus" class="w-3.5 h-3.5 text-emerald-400"></i>
+                    <span>Reponer stock</span>
+                  </button>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `}
+      `;
+    }
+
+    function renderTienda() {
+      return `
+        <header class="pt-2 pb-3">
+          <h1 class="text-lg font-extrabold text-[#0F2537]">Mi tienda</h1>
+          <p class="text-xs text-slate-500">Prueba acompañada, soporte y equipo conectado</p>
+        </header>
+
+        <!-- Highlighted Card: Prueba gratuita acompañada & Assisted Migration -->
+        <section class="bg-[#0F2537] text-white rounded-3xl p-4 shadow-lg shadow-[#0F2537]/15 mb-3.5 relative overflow-hidden">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2.5 py-0.5 rounded-full">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                Relación con clientes · Prueba gratuita
+              </span>
+              <h2 class="text-sm font-extrabold mt-2 leading-snug">Prueba gratuita acompañada y migración asistida de inventario</h2>
+            </div>
+            <div class="w-9 h-9 rounded-xl bg-white/10 text-emerald-400 flex items-center justify-center shrink-0">
+              <i data-lucide="sparkles" class="w-5 h-5"></i>
+            </div>
+          </div>
+
+          <p class="text-[11px] text-slate-300 mt-1.5 leading-relaxed">
+            Prueba el sistema antes de contratar con apoyo directo para trasladar tu inventario desde Excel o cuaderno, manteniendo tutoriales, soporte por WhatsApp y correo, actualizaciones y seguimiento continuo.
+          </p>
+
+          <!-- Interactive Button: Iniciar migración asistida (Excel / Cuaderno) -->
+          <button onclick="openMigrationModal()" class="w-full mt-3 bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-sm flex items-center justify-center gap-2 transition">
+            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+            <span>Iniciar migración asistida (Excel / Cuaderno)</span>
+          </button>
+
+          <!-- Support & Customer Relationship Block -->
+          <div class="grid grid-cols-3 gap-1.5 mt-2.5 pt-2.5 border-t border-white/10 text-[10px] font-semibold">
+            <button onclick="triggerSupportAction('tutoriales')" class="bg-white/10 hover:bg-white/15 py-2 px-1.5 rounded-xl flex flex-col items-center justify-center gap-1 transition">
+              <i data-lucide="play-circle" class="w-3.5 h-3.5 text-sky-300"></i>
+              <span class="text-center leading-tight">Tutoriales paso a paso</span>
+            </button>
+            <button onclick="triggerSupportAction('whatsapp')" class="bg-white/10 hover:bg-white/15 py-2 px-1.5 rounded-xl flex flex-col items-center justify-center gap-1 transition">
+              <i data-lucide="message-circle" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span class="text-center leading-tight">Soporte por WhatsApp y correo</span>
+            </button>
+            <button onclick="triggerSupportAction('correo')" class="bg-white/10 hover:bg-white/15 py-2 px-1.5 rounded-xl flex flex-col items-center justify-center gap-1 transition">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-amber-300"></i>
+              <span class="text-center leading-tight">Actualizaciones y seguimiento</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- Multi-Cellphone Connected Team Card -->
+        <section class="bg-white rounded-3xl p-4 shadow-sm border border-slate-200/80 mb-3.5">
+          <div class="flex items-center justify-between mb-1">
+            <h3 class="text-sm font-extrabold text-[#0F2537]">Equipo conectado (Multi-celular)</h3>
+          </div>
+          <span class="inline-block text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-0.5 rounded-full mb-2.5">
+            Sin equipos extra ni contratos largos
+          </span>
+
+          <p class="text-[11px] text-slate-500 leading-relaxed mb-2.5">
+            Minimarket Don José · Lima — Todo el equipo visualiza el mismo stock real desde su propio celular.
+          </p>
+
+          <div class="divide-y divide-slate-100">
+            <!-- Member 1 -->
+            <div class="py-2 flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-full bg-[#0F2537] text-white text-xs font-bold flex items-center justify-center">JC</div>
+                <div>
+                  <p class="text-xs font-bold text-[#0F2537]">José (Dueño / Administrador)</p>
+                  <p class="text-[10px] text-emerald-600 font-medium">Activo ahora · Celular</p>
+                </div>
+              </div>
+              <i data-lucide="smartphone" class="w-4 h-4 text-emerald-600"></i>
+            </div>
+
+            <!-- Member 2 -->
+            <div class="py-2 flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-full bg-slate-200 text-[#0F2537] text-xs font-bold flex items-center justify-center">CM</div>
+                <div>
+                  <p class="text-xs font-bold text-[#0F2537]">Carlos (Turno mañana)</p>
+                  <p class="text-[10px] text-slate-500">Activo hace 5 min · Celular</p>
+                </div>
+              </div>
+              <i data-lucide="smartphone" class="w-4 h-4 text-emerald-600"></i>
+            </div>
+
+            <!-- Member 3 -->
+            <div class="py-2 flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-full bg-slate-200 text-[#0F2537] text-xs font-bold flex items-center justify-center">MT</div>
+                <div>
+                  <p class="text-xs font-bold text-[#0F2537]">María (Turno tarde)</p>
+                  <p class="text-[10px] text-slate-500">Activo hace 18 min · Celular</p>
+                </div>
+              </div>
+              <i data-lucide="smartphone" class="w-4 h-4 text-emerald-600"></i>
+            </div>
+          </div>
+
+          <!-- Interactive Demo Button to Simulate Team Sync -->
+          <button onclick="simulateWorkerSync()" class="w-full mt-2.5 bg-slate-100 hover:bg-slate-200/80 text-[#0F2537] border border-slate-300/70 font-bold text-xs py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition active:scale-95">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-emerald-600"></i>
+            <span>+ Simular registro de otro trabajador</span>
+          </button>
+        </section>
+      `;
+    }
+
+    // Inventory Filter & Search Event Handlers
+    function handleSearchInput(val) {
+      state.searchQuery = val;
+      renderApp();
+      // Preserve input focus after re-render
+      const input = document.querySelector('#app-viewport input[type="text"]');
+      if (input) {
+        input.focus();
+        input.setSelectionRange(val.length, val.length);
+      }
+    }
+
+    function selectCategory(cat) {
+      state.selectedCategory = cat;
+      renderApp();
+    }
+
+    function setAvailabilityFilter(filterKey) {
+      state.availabilityFilter = filterKey;
+      renderApp();
+    }
+
+    function resetAllFilters() {
+      state.selectedCategory = 'Todos';
+      state.availabilityFilter = 'all';
+      state.searchQuery = '';
+      renderApp();
+    }
+
+    function selectCategory(cat) {
+      state.selectedCategory = cat;
+      state.inventorySubView = 'lista';
+      renderApp();
+    }
+
+    function setAvailabilityFilter(filterKey) {
+      state.availabilityFilter = filterKey;
+      renderApp();
+    }
+
+    function resetAllFilters() {
+      state.selectedCategory = 'Todos';
+      state.availabilityFilter = 'all';
+      state.searchQuery = '';
+      state.inventorySubView = 'lista';
+      renderApp();
+    }
+
+    // Product Detail Interactive Handlers
+    function adjustDraftStock(delta) {
+      state.detailDraftStock = Math.max(0, state.detailDraftStock + delta);
+      renderApp();
+    }
+
+    function updateDetailPreview() {
+      const p = products.find(item => item.id === state.selectedProductId);
+      if (!p) return;
+      const brand = document.getElementById('detail-brand').value;
+      const variant = document.getElementById('detail-variant').value;
+      const size = document.getElementById('detail-size').value;
+      const titleEl = document.getElementById('detail-standardized-title');
+      if (titleEl) {
+        titleEl.textContent = `${p.baseName} ${brand} ${variant} · ${size}`;
+      }
+    }
+
+    function saveProductDetail(productId) {
+      const p = products.find(item => item.id === productId);
+      if (!p) return;
+
+      const brand = document.getElementById('detail-brand').value;
+      const variant = document.getElementById('detail-variant').value;
+      const size = document.getElementById('detail-size').value;
+      const stockDiff = state.detailDraftStock - p.stock;
+
+      p.brand = brand;
+      p.variant = variant;
+      p.size = size;
+      p.stock = state.detailDraftStock;
+
+      if (stockDiff !== 0) {
+        state.lastActivity = {
+          type: stockDiff > 0 ? `Último ingreso: +${stockDiff} unidades` : `Última salida: ${stockDiff} unidades`,
+          detail: `${p.baseName} ${p.brand} ${p.size} · Ahora · Por José (Celular)`,
+          isPositive: stockDiff > 0
+        };
+      } else {
+        state.lastActivity = {
+          type: `Ficha actualizada (${p.sku})`,
+          detail: `${p.baseName} ${p.brand} ${p.size} · Ahora · Por José (Celular)`,
+          isPositive: true
+        };
+      }
+
+      switchTab(state.previousTab);
+      showSyncToast(
+        "Stock actualizado para todo el equipo · Sin equipos extra",
+        `${p.baseName} ${p.brand} (${p.stock} un.) sincronizado al instante`
+      );
+    }
+
+    // Main Render Dispatcher
+    function renderApp() {
+      const viewport = document.getElementById('app-viewport');
+      if (!viewport) return;
+
+      switch (state.activeTab) {
+        case 'inicio':
+          viewport.innerHTML = renderInicio();
+          break;
+        case 'inventario':
+          viewport.innerHTML = renderInventario();
+          break;
+        case 'detalle':
+          viewport.innerHTML = renderDetalle();
+          break;
+        case 'alertas':
+          viewport.innerHTML = renderAlertas();
+          break;
+        case 'tienda':
+          viewport.innerHTML = renderTienda();
+          break;
+      }
+
+      lucide.createIcons();
+    }
+
+    // Initialize on load
+    window.onload = function () {
+      updateNavStyles();
+      renderApp();
+    };
+  </script>
+</body>
+</html>
